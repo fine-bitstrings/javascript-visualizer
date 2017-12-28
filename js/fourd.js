@@ -3,7 +3,6 @@
  four-d.js
  Joshua M. Moore
  April 23, 2015
-
  depends on: mrdoob's three.js, rev66
  https://github.com/mrdoob/three.js/tree/r66
  tested with r66
@@ -17,15 +16,7 @@
  Here's how it works:
  
  var fourd = new FourD(); // instantiation
- fourd.init('#selector', {width: 600, height: 350}); // initialization
- 
- 
- var vertex_options = {
-   width: 5, // pixels
-   height: 5,
-   depth: 5,
-   color: 0x000000 // hex color
- };
+ fourd.init('#selector', {width: 600, height: 350}); // initialization.
  
  var vertex_options = {
    cube: {
@@ -36,6 +27,7 @@
      offset: Offset('bottom', 0) // optional
    },
    label: {
+		 size: 
      text: 
    }
  }
@@ -72,7 +64,7 @@ var FourD = function(){
   var CONSTANTS = {
     width: 1000,
     attraction: 0.1,
-    far: 10000,
+    far: 100000,
     optimal_distance: 1.0,
     minimum_velocity: 0.001,
     friction: 0.60,
@@ -86,9 +78,11 @@ var FourD = function(){
   };
   
   var is_vertex = function(potential){
-    return potential.hasOwnProperty('id') && 
+    return true;
+		/*potential.hasOwnProperty('id') && 
       potential.hasOwnProperty('edge_count') && 
       potential.hasOwnProperty('edges');
+			*/
   };
 
   /* 
@@ -105,7 +99,7 @@ var FourD = function(){
     
   */
   var Vertex = function(id, options){
-    this.options = options;
+    this.options = options || {};
     this.id = id;
     
     this.position = new THREE.Vector3(0, 0, 0);
@@ -118,12 +112,10 @@ var FourD = function(){
 
     this.edge_count = 0;
     this.edges = {};
-    this.neighbors = [];
     
     if(!this.options.hasOwnProperty('label')){
       this.options.label = {
         text: '',
-        paint: false,
         direction: 'x',
         distance: '10'
       };
@@ -138,18 +130,96 @@ var FourD = function(){
     var measurements = context.measureText(options.text);
     //canvas.width = measurements.width + 10;
     //canvas.height = fontSize + 2;
-    context.width = context.height = measurements.width * fontSize;
+    context.height = fontSize;
+		context.width = measurements.width;
     context.fillText(options.text, 0, fontSize);
     
     return canvas;
   };
 
   var Label = function(options){
-    var texture = new THREE.Texture(getPicture(options));
+    /*
+		var texture = new THREE.Texture(getPicture(options));
     texture.minFilter = THREE.LinearFilter; // ?
     texture.needsUpdate = true;
     var material = new THREE.SpriteMaterial({map: texture});
     var sprite = new THREE.Sprite(material);
+		*/
+		
+		// from https://stemkoski.github.io/Three.js/Sprite-Text-Labels.html, thanks!a
+		var makeTextSprite = function( message, parameters )
+		{
+			if ( parameters === undefined ) parameters = {};
+			
+			var fontface = parameters.hasOwnProperty("fontface") ? 
+				parameters["fontface"] : "Arial";
+			
+			var fontsize = parameters.hasOwnProperty("fontsize") ? 
+				parameters["fontsize"] : 18;
+			
+			var borderThickness = parameters.hasOwnProperty("borderThickness") ? 
+				parameters["borderThickness"] : 1;
+			
+			var borderColor = parameters.hasOwnProperty("borderColor") ?
+				parameters["borderColor"] : { r:0, g:0, b:0, a:1.0 };
+			
+			var backgroundColor = parameters.hasOwnProperty("backgroundColor") ?
+				parameters["backgroundColor"] : { r:255, g:255, b:255, a:1.0 };
+				
+			var canvas = document.createElement('canvas');
+			var context = canvas.getContext('2d');
+			context.font = fontsize + "px " + fontface;
+				
+			// get size data (height depends only on font size)
+			var metrics = context.measureText( message );
+			var textWidth = metrics.width;
+			
+			// background color
+			context.fillStyle   = "rgba(" + backgroundColor.r + "," + backgroundColor.g + ","
+											+ backgroundColor.b + "," + backgroundColor.a + ")";
+			// border color
+			context.strokeStyle = "rgba(" + borderColor.r + "," + borderColor.g + ","
+											+ borderColor.b + "," + borderColor.a + ")";
+
+			context.lineWidth = borderThickness;
+			roundRect(context, borderThickness/2, borderThickness/2, textWidth + borderThickness, fontsize * 1.4 + borderThickness, 6);
+			// 1.4 is extra height factor for text below baseline: g,j,p,q.
+			
+			// text color
+			context.fillStyle = "rgba(0, 0, 0, 1.0)";
+
+			context.fillText( message, borderThickness, fontsize + borderThickness);
+			
+			// canvas contents will be used for a texture
+			var texture = new THREE.Texture(canvas) 
+			texture.needsUpdate = true;
+
+			var spriteMaterial = new THREE.SpriteMaterial( 
+				{ map: texture, useScreenCoordinates: false } );
+			var sprite = new THREE.Sprite( spriteMaterial );
+			sprite.scale.set(10, 10, 1.0);
+			return sprite;	
+		}
+
+		// function for drawing rounded rectangles
+		var roundRect = function(ctx, x, y, w, h, r) 
+		{
+			ctx.beginPath();
+			ctx.moveTo(x+r, y);
+			ctx.lineTo(x+w-r, y);
+			ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+			ctx.lineTo(x+w, y+h-r);
+			ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+			ctx.lineTo(x+r, y+h);
+			ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+			ctx.lineTo(x, y+r);
+			ctx.quadraticCurveTo(x, y, x+r, y);
+			ctx.closePath();
+			ctx.fill();
+			ctx.stroke();   
+		}
+
+		var sprite = makeTextSprite(options.text, options);
     return sprite;
   };
   
@@ -163,29 +233,43 @@ var FourD = function(){
     
     if(this.options.cube){
       var cube = new Cube(this.options.cube);
+			cube.geometry.computeFaceNormals();
       this.object.add(cube);
       cube.position.set(0, 0, 0);
+			cube.vertex = this;
     }
-    if(this.options.label){
+    if(this.options.label && this.options.label.text){
       var label = new Label(this.options.label);
       //scene.add(label);
       this.object.add(label);
-      label.position.set(0, this.options.cube ? this.options.cube.size*(-1)*0.5 : 0, 0);
-      // label.position.set(0, 0, 0);
+			var distance = 0;
+			if(this.options.cube && this.options.cube.size){
+				distance += this.options.cube.size / 2;
+			}
+      label.position.set(0, -distance, 0);
     }
     
     scene.add(this.object);
-  }
-  
+  };
+
   /* 
     Vertex.remove(...) 
     removes either a label: Vertex.remove('label'),
     or the vertex's cube: Vertex.remove('cube').
   */ 
   Vertex.prototype.remove = function(name){
-    this.object.remove(name)
+    this.object.remove(name);
   }
 
+	
+	var CameraVertex = function(id, camera){
+		Vertex.call(this, id);
+		this.object = camera;
+		this.id = id;
+	};
+	CameraVertex.prototype = Object.create(Vertex.prototype);
+	CameraVertex.prototype.constructor = CameraVertex;
+	
   // Edge
   var Edge = function(id, source, target, options){
     this.options = options === undefined ? {strength: 1.0} : options;
@@ -196,13 +280,13 @@ var FourD = function(){
 
     if(!is_vertex(source)){
       var source_type = typeof source;
-      var source_error_msg = 'Source should be a Vertex instead of a ' + src_type + '.';
+      var source_error_msg = 'Source should be a Vertex instead of a ' + source_type + '.';
       throw new Error(src_error_msg);
     }
 
     if(!is_vertex(target)){
       var target_type = typeof target;
-      var target_error_msg = 'Target should be a Vertex instead of a ' + tgt_type + '.';
+      var target_error_msg = 'Target should be a Vertex instead of a ' + target_type + '.';
       throw new Error(tgt_error_msg);
     }
 
@@ -214,17 +298,23 @@ var FourD = function(){
     this.source = source;
     this.target = target;
 
-    this.source.edge_count += 1;
-    this.target.edge_count += 1;
+		this.source.edge_count += 1;
+		this.target.edge_count += 1;
 
-    this.source.edges[this.id] = this;
-    this.target.edges[this.id] = this;
+		if(!this.source.edges) this.source.edges = [];
+		if(!this.target.edges) this.target.edges = [];
+		this.source.edges[this.id] = this;
+		this.target.edges[this.id] = this;
 
     this.order = Math.random();
   };
 
-  Edge.prototype.paint = function(scene){
-    this.object = line(scene, this.source, this.target, this.options);
+  Edge.prototype.paint = function(scene, options){
+		options = options || {
+			color: 0x00000,
+			paint: true
+		}
+    this.object = line(scene, this.source, this.target, options);
   };
 
   Edge.prototype.toString = function(){
@@ -241,7 +331,7 @@ var FourD = function(){
     this.source.edge_count--;
     this.target.edge_count--;
   };
-
+	
   // Graph
   var Graph = function(scene){
     this.scene = scene;
@@ -281,12 +371,22 @@ var FourD = function(){
 
   // api
   Graph.prototype.add_vertex = function(options){
+		options = options || {};
+		
     var v = new Vertex(this.vertex_id_spawn++, options);
     v.paint(this.scene);
-    this.V[v.id] = v;
-
+		this.V[v.id] = v;
+		v.object.vertex = v;
+    
     return v;
   };
+	
+	Graph.prototype.add_camera_vertex = function(camera){
+		var v = new CameraVertex(this.vertex_id_spawn++, camera);
+		v.position = v.object.position;
+		this.V[v.id] = v;
+		return v;
+	};
 
   // api
   Graph.prototype.add_edge = function(source, target, options){
@@ -311,6 +411,10 @@ var FourD = function(){
     edge.paint(this.scene);
     return edge;
   };
+	
+	Graph.prototype.add_invisible_edge = function(source, target){
+		return this.add_edge(source, target, {opacity: 0.0});
+	}
 
   // api
   Graph.prototype.remove_edge = function(edge){
@@ -325,7 +429,7 @@ var FourD = function(){
     var edges = Object.keys(this.E).length;
     var nodes = Object.keys(this.V).length;
 
-    return '|V|: ' + nodes.toString() + ',  |E|: ' + edges.toString();
+    return '|V|: ' + nodes.toString() + ', |E|: ' + edges.toString();
   };
 
   // api
@@ -402,14 +506,19 @@ var FourD = function(){
 
   // apiish this will change
   // todo: make line options like cube options
-  var line = function(scene, source, target){
+  var line = function(scene, source, target, options){
     var geometry = new THREE.Geometry();
     geometry.dynamic = true;
     geometry.vertices.push(source.object.position);
     geometry.vertices.push(target.object.position);
     geometry.verticesNeedUpdate = true;
     
-    var material = new THREE.LineBasicMaterial({ color: 0x000000 });
+		options = options || {};
+		options.color = options.color ? options.color : 0x000000;
+		options.transparent = options.transparent ? options.transparent : false;
+		options.opacity = options.opacity ? options.opacity : 1.0;
+		
+    var material = new THREE.LineBasicMaterial(options);
     
     var line = new THREE.Line( geometry, material );
       
@@ -596,6 +705,58 @@ var FourD = function(){
 
     this.center = tree.center();
   };
+	
+	Graph.prototype.add_cycle = function(vertex_options){
+		var vertices = [];
+		var edges = [];
+		for(var i=0; i<vertex_options.length; i++){
+			vertices.push(this.add_vertex(vertex_options[i]));
+			if(i>0){
+				edges.push(this.add_edge(vertices[i-1], vertices[i]));
+			}
+		}
+		edges.push(this.add_edge(vertices[0], vertices[vertices.length-1]));
+		
+		return {
+			vertices: vertices,
+			edges: edges
+		};
+	};
+	
+	Graph.prototype.remove_cycle = function(cycle){
+		for(var i=0; i<cycle.edges.length; i++){
+			this.remove_edge(cycle.edges[i]);
+		}
+		for(var i=0; i<cycle.vertices.length; i++){
+			this.remove_vertex(cycle.vertices[i]);
+		}
+	};
+
+	this.select = function(vertex){
+		if(!vertex) return;
+		
+		if(that.selected){
+			that.graph.remove_edge(that.camera_edge);
+			delete that.camera_edge;
+			that.graph.remove_vertex(that.camera_vertex);
+			delete that.camera_vertex;
+		}
+		
+		var camera = that._internals.camera;
+		that.camera_vertex = that.graph.add_camera_vertex(camera);
+		that.camera_edge = that.graph.add_invisible_edge(vertex, that.camera_vertex);
+		that.selected = vertex;
+	};
+	
+	this.deselect = function(){
+		that.selected = null;
+		that.graph.remove_edge(that.camera_edge);
+		delete that.camera_edge;
+		that.graph.remove_vertex(that.camera_vertex);
+		delete that.camera_vertex;
+		
+		that.selected = null;
+	}
   
   this._internals = {};
   var scene,
@@ -608,16 +769,28 @@ var FourD = function(){
       clock, 
       raycaster,
       mouse,
-      intersects;
+      intersects,
+			render_loop = [];
       
   var old_intersects,
       old_color;
+	var that = this;
   var render = function render(){
     requestAnimationFrame(render);
 
     graph.layout();
     controls.update(clock.getDelta());
     
+		for(var i=0; i<that.render_loop.length; i++){
+			if(typeof that.render_loop[i] == 'function'){
+				that.render_loop[i]();
+			}
+		}
+		
+		if(that.selected){
+			camera.lookAt(that.selected.position);
+		}
+		
     renderer.render(scene, camera);
   };
 
@@ -646,6 +819,7 @@ var FourD = function(){
     
     renderer = new THREE.WebGLRenderer();
     renderer.setClearColor(0xefefef);
+		renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize( options.width, options.height );
     
     THREEx.WindowResize(renderer, camera);
@@ -660,29 +834,30 @@ var FourD = function(){
     clock = new THREE.Clock();
     controls = new THREE.FlyControls( camera );
     controls.update(clock.getDelta()); 
-    controls.movementSpeed = 500;
+    controls.movementSpeed = 250;
 		controls.domElement = renderer.domElement;
-		controls.rollSpeed = Math.PI / 6;
+		controls.rollSpeed = Math.PI / 12;
 		controls.autoForward = false;
 		controls.dragToLook = true;
     
-    raycaster = new THREE.Raycaster();
-    mouse = new THREE.Vector2();
-    
-    function onMouseMove(event){
-      mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-      mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+		that.intersect_callback = function(object){
+			console.log(object);
+		};
+		
+    var onMouseDown = function(event){
+			if(event.target === renderer.domElement){
+				var raycaster = new THREE.Raycaster();
+				mouse = new THREE.Vector2();
+				mouse.x = ( event.clientX / renderer.domElement.width ) * 2 - 1;
+				mouse.y = - ( event.clientY / renderer.domElement.height ) * 2 + 1;
+				raycaster.setFromCamera(mouse, camera);
+				intersects = raycaster.intersectObjects(scene.children, true);
+				if(intersects.length > 0){
+					that.intersect_callback(intersects[0].object, event);
+				}
+			}
     }
-    window.addEventListener('mousemove', onMouseMove, false);
-    
-    function onMouseClick(event){
-      raycaster.setFromCamera(mouse, camera);
-      intersects = raycaster.intersectObjects(scene.children);
-      if(intersects.length > 0){
-        intersects[0].object.children[0].material.color.set(0xff0000);
-      }
-    }
-    window.addEventListener('mouseclick', onMouseClick, false);
+    window.addEventListener('mousedown', onMouseDown, false);
     
     that._internals = {
       scene: scene,
@@ -694,8 +869,12 @@ var FourD = function(){
       controls: controls,
       clock: clock, 
       raycaster: raycaster,
-      mouse: mouse,
-      intersects: intersects
+			mouse: mouse,
+			
+			Vertex: Vertex,
+			Edge: Edge,
+			CameraVertex: CameraVertex,
+			BHN3: BHN3
     };
 
     // api
@@ -703,16 +882,10 @@ var FourD = function(){
     this.graph = graph;
     this.render = render;
     this.clear = clear;
+		this.render_loop = render_loop;
     this.variables = CONSTANTS;
 
     render();
-  };
-  
-  this._internals = {
-    Vertex: Vertex,
-    Edge: Edge,
-    Graph: Graph,
-    BHN3: BHN3,
   };
 
   // untested
